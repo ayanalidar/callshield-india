@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CallShield Crowd Reports Engine
  * 

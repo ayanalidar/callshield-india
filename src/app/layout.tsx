@@ -3,9 +3,15 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'CallShield India — Scam Call Protection',
   description: 'AI-powered scam call protection for every Indian. Real-time detection, blocking, and reporting.',
-  viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
-  themeColor: '#050c07',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent' },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#050c07',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
