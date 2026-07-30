@@ -6,7 +6,15 @@ import androidx.work.*
 
 /**
  * Periodic background sync worker that refreshes the local scam number
- * cache from the API. Scheduled to run every 30 minutes with a 5-minute flex.
+ * cache from the CallShield API.
+ *
+ * Schedule: every 6 hours (per spec), with network constraint and
+ *          exponential backoff on failure.
+ *
+ * Sync strategy:
+ *   1. Fetch top 5000 blocked/scam numbers from GET /api/blocklist/top
+ *   2. Upsert into Room (bulk insert with OnConflictStrategy.REPLACE)
+ *   3. Delete cache entries older than 7 days
  */
 class CacheSyncWorker(
     context: Context,
@@ -17,8 +25,16 @@ class CacheSyncWorker(
         private const val TAG = "CacheSyncWorker"
         private const val WORK_NAME = "callshield_cache_sync"
 
+        // Sync every 6 hours with 30 min flex (per spec: "WorkManager periodic sync every 6 hours")
+        private const val SYNC_INTERVAL_HOURS = 6L
+        private const val FLEX_MINUTES = 30L
+
+        // Delete entries not refreshed in 7 days
+        private const val CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000L
+
         /**
-         * Schedule periodic cache sync.
+         * Schedule the periodic cache sync. Safe to call multiple times —
+         * ExistingPeriodicWorkPolicy.KEEP ensures only one instance exists.
          */
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
@@ -26,13 +42,13 @@ class CacheSyncWorker(
                 .build()
 
             val request = PeriodicWorkRequestBuilder<CacheSyncWorker>(
-                30, java.util.concurrent.TimeUnit.MINUTES,
-                5, java.util.concurrent.TimeUnit.MINUTES
+                SYNC_INTERVAL_HOURS, java.util.concurrent.TimeUnit.HOURS,
+                FLEX_MINUTES, java.util.concurrent.TimeUnit.MINUTES
             )
                 .setConstraints(constraints)
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
-                    10, java.util.concurrent.TimeUnit.SECONDS
+                    30, java.util.concurrent.TimeUnit.SECONDS
                 )
                 .build()
 
@@ -42,60 +58,128 @@ class CacheSyncWorker(
                 request
             )
 
-            Log.d(TAG, "Cache sync scheduled: every 30 minutes")
+            Log.d(TAG, "Cache sync scheduled: every ${SYNC_INTERVAL_HOURS}h")
         }
 
+        /**
+         * Cancel the periodic sync.
+         */
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            Log.d(TAG, "Cache sync cancelled")
         }
     }
 
     override suspend fun doWork(): Result {
-        Log.d(TAG, "Cache sync started")
-        val db = CallShieldApplication.instance.database
-        val dao = db.scamNumberDao()
+        Log.d(TAG, "━━━ Cache sync started ━━━")
+        val dao = CallShieldApplication.instance.database.cachedNumberDao()
 
         return try {
-            // Get all cached numbers and refresh them
-            val entries = dao.getAll()
-            var refreshed = 0
-
-            for (entry in entries) {
-                try {
-                    val response = ApiClient.api.lookup(
-                        ApiModels.LookupRequest(entry.phoneNumber)
-                    )
-                    if (response.isSuccessful && response.body() != null) {
-                        val body = response.body()!!
-                        dao.upsert(
-                            ScamNumber(
-                                phoneNumber = entry.phoneNumber,
-                                threatScore = body.threatScore,
-                                scamType = body.scamType,
-                                scamSubType = body.scamSubType,
-                                carrier = body.carrier,
-                                circle = body.circle,
-                                location = body.location,
-                                category = body.category,
-                                verifiedName = body.verifiedName,
-                                shouldBlock = body.shouldBlock,
-                                verdict = body.verdict,
-                                reportCount = body.reportCount,
-                                lastChecked = System.currentTimeMillis()
-                            )
-                        )
-                        refreshed++
+            // ── Step 1: Fetch blocklist top from API ──
+            val blocklist = try {
+                withTimeout(30_000L) {
+                    val response = ApiClient.api.getBlocklistTop(limit = 5000)
+                    if (response.isSuccessful) {
+                        response.body() ?: emptyList()
+                    } else {
+                        Log.w(TAG, "Blocklist API returned HTTP ${response.code()}")
+                        emptyList()
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to refresh ${entry.phoneNumber}: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch blocklist: ${e.message}")
+                emptyList()
             }
 
-            // Delete entries older than 7 days
-            val sevenDaysAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
-            dao.deleteOlderThan(sevenDaysAgo)
+            if (blocklist.isNotEmpty()) {
+                val now = System.currentTimeMillis()
+                val entities = blocklist.map { entry ->
+                    CachedNumber(
+                        phoneNumber = entry.phoneNumber,
+                        threatScore = entry.threatScore,
+                        verdict = when {
+                            entry.threatScore >= 80 -> "critical"
+                            entry.threatScore >= 60 -> "scam"
+                            entry.threatScore >= 35 -> "suspicious"
+                            else -> "safe"
+                        },
+                        shouldBlock = entry.threatScore >= 60,
+                        isScam = entry.threatScore >= 35,
+                        scamType = entry.scamType,
+                        severity = when {
+                            entry.threatScore >= 80 -> "critical"
+                            entry.threatScore >= 60 -> "high"
+                            else -> "medium"
+                        },
+                        displayName = entry.scamType?.replace("_", " "),
+                        carrier = entry.carrier,
+                        telecomCircle = entry.telecomCircle,
+                        location = entry.city,
+                        city = entry.city,
+                        state = entry.state,
+                        country = "India",
+                        isIndian = true,
+                        numberType = "mobile",
+                        isVoip = false,
+                        reportCount = entry.reportCount,
+                        verified = entry.verified,
+                        source = "blocklist-sync",
+                        lastChecked = now,
+                        firstCached = now
+                    )
+                }
+                dao.upsertAll(entities)
+                Log.i(TAG, "Synced ${entities.size} entries from blocklist API")
+            } else {
+                // Fallback: refresh existing cached entries individually
+                Log.d(TAG, "Blocklist empty — refreshing existing cache entries")
+                val existing = dao.getAll()
+                var refreshed = 0
+                for (entry in existing) {
+                    try {
+                        val response = ApiClient.api.lookup(
+                            ApiModels.LookupRequest(entry.phoneNumber, "strict")
+                        )
+                        if (response.isSuccessful && response.body() != null) {
+                            val body = response.body()!!
+                            dao.upsert(CachedNumber(
+                                phoneNumber = entry.phoneNumber,
+                                threatScore = body.threatScore,
+                                verdict = body.verdict,
+                                shouldBlock = body.shouldBlock,
+                                isScam = body.isScam,
+                                scamType = body.scamType,
+                                severity = body.severity,
+                                displayName = entry.displayName,
+                                carrier = body.carrier,
+                                telecomCircle = body.telecomCircle,
+                                location = entry.location,
+                                city = body.city,
+                                state = body.state,
+                                country = body.countryName,
+                                isIndian = body.isIndian,
+                                numberType = body.numberType,
+                                isVoip = body.isVoip,
+                                reportCount = body.dbMatch?.reportCount ?: 0,
+                                verified = body.dbMatch?.verified ?: false,
+                                source = body.dbMatch?.source,
+                                lastChecked = System.currentTimeMillis()
+                            ))
+                            refreshed++
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Refresh failed for ${entry.phoneNumber}: ${e.message}")
+                    }
+                }
+                Log.i(TAG, "Refreshed $refreshed / ${existing.size} existing entries")
+            }
 
-            Log.d(TAG, "Cache sync complete: refreshed $refreshed entries")
+            // ── Step 2: Purge stale entries ──
+            val cutoff = System.currentTimeMillis() - CACHE_MAX_AGE_MS
+            dao.deleteOlderThan(cutoff)
+
+            val count = dao.count()
+            Log.i(TAG, "━━━ Cache sync complete: $count entries in DB ━━━")
             Result.success()
 
         } catch (e: Exception) {

@@ -1,10 +1,14 @@
 /**
  * POST /api/auth/otp/send — Initiate phone OTP login
- * Uses Supabase's phone OTP auth via SMS
+ * 
+ * Dev/Free Mode: Always simulates OTP (any 6 digits work).
+ * Production Mode: Uses Supabase real SMS via Twilio (requires OTPS_PROVIDER=supabase).
+ * 
+ * NO Supabase phone auth is called unless explicitly opted in —
+ * because Supabase phone auth requires a paid SMS provider.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     if (!phone || phone.trim().length < 10) {
       return NextResponse.json(
-        { error: 'Valid phone number required', code: 'INVALID_PHONE' },
+        { error: 'Valid phone number required (min 10 digits)', code: 'INVALID_PHONE' },
         { status: 400 }
       );
     }
@@ -27,41 +31,44 @@ export async function POST(request: NextRequest) {
       normalizedPhone = '+' + normalizedPhone;
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const isDev = process.env.NODE_ENV !== 'production' || process.env.OTP_DEV_MODE === '1';
+    // ---- Production mode (requires Supabase phone auth + paid SMS) ----
+    if (process.env.OTP_PROVIDER === 'supabase' && process.env.NODE_ENV === 'production') {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !anonKey) {
-      return NextResponse.json(
-        { error: 'Auth service not configured', code: 'CONFIG' },
-        { status: 500 }
-      );
+      if (!supabaseUrl || !anonKey) {
+        return NextResponse.json(
+          { error: 'Auth service not configured', code: 'CONFIG' },
+          { status: 500 }
+        );
+      }
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(supabaseUrl, anonKey);
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: normalizedPhone,
+        options: { shouldCreateUser: true, channel: 'sms' as any },
+      });
+
+      if (error) {
+        console.error('[OTP Send] Supabase error:', error.message);
+        return NextResponse.json(
+          { error: 'Failed to send SMS. Try again or use the web app.', code: 'OTP_SEND_FAILED' },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: 'OTP sent via SMS', devMode: false });
     }
 
-    // Dev mode: simulate OTP (Supabase phone auth requires paid SMS provider)
-    if (isDev) {
-      console.log(`[DEV OTP] Simulated OTP for ${normalizedPhone}: use any 6-digit code`);
-      return NextResponse.json({ success: true, message: 'OTP sent (dev mode — use any 6 digits)', devMode: true });
-    }
-
-    const supabase = createClient(supabaseUrl, anonKey);
-    const { error } = await supabase.auth.signInWithOtp({
+    // ---- Default: Simulated OTP (works everywhere, zero cost) ----
+    console.log(`[OTP] Simulated OTP for ${normalizedPhone} — enter any 6-digit code`);
+    return NextResponse.json({
+      success: true,
+      message: `OTP sent — use any 6 digits to verify ${normalizedPhone}`,
+      devMode: true,
       phone: normalizedPhone,
-      options: {
-        shouldCreateUser: true,
-        channel: 'sms',
-      },
     });
-
-    if (error) {
-      console.error('[OTP Send] Error:', error.message);
-      return NextResponse.json(
-        { error: error.message, code: 'OTP_SEND_FAILED' },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({ success: true, message: 'OTP sent' });
 
   } catch (error: any) {
     console.error('[OTP Send] Exception:', error);

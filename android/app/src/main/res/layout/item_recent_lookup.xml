@@ -3,10 +3,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="8dp"
+    android:paddingVertical="10dp"
+    android:paddingHorizontal="12dp"
     android:gravity="center_vertical"
     android:background="@color/surface_variant"
-    android:layout_margin="2dp">
+    android:layout_marginVertical="1dp"
+    android:minHeight="48dp">
 
     <TextView
         android:id="@+id/recentNumber"
@@ -14,8 +16,10 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:textColor="@color/text_primary"
-        android:textSize="16sp"
-        android:fontFamily="sans-serif-medium" />
+        android:textSize="15sp"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
     <TextView
         android:id="@+id/recentVerdict"
@@ -23,6 +27,9 @@
         android:layout_height="wrap_content"
         android:textColor="@color/text_secondary"
         android:textSize="12sp"
-        android:fontFamily="sans-serif" />
+        android:fontFamily="sans-serif"
+        android:layout_marginStart="8dp"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
 </LinearLayout>

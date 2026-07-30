@@ -1,20 +1,21 @@
 package com.callshield.india
 
-import android.os.Bundle
 import android.telecom.Connection
 import android.telecom.ConnectionRequest
 import android.telecom.ConnectionService
 import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
+import android.telecom.TelecomManager
 import android.util.Log
 
 /**
  * ConnectionService that bridges CallShield as a full dialer replacement.
  *
- * This service is responsible for:
- *   - Creating outgoing call Connections when the user dials from CallShield
- *   - Managing call state (dialing, active, disconnected)
- *   - Handling disconnect with proper causes
+ * Handles:
+ *   - Outgoing calls placed via the CallShield dial pad
+ *   - Incoming call connections
+ *   - Call state management (dialing → active → disconnected)
+ *   - Proper disconnect causes for call log accuracy
  */
 class CallShieldConnectionService : ConnectionService() {
 
@@ -27,21 +28,15 @@ class CallShieldConnectionService : ConnectionService() {
         request: ConnectionRequest?
     ): Connection {
         val connection = CallShieldConnection()
-        connection.setAddress(request?.address, android.telecom.TelecomManager.PRESENTATION_ALLOWED)
+        val address = request?.address
+        val number = address?.schemeSpecificPart ?: "Unknown"
+
+        connection.setAddress(address, TelecomManager.PRESENTATION_ALLOWED)
         connection.setDialing()
+        Log.d(TAG, "Outgoing → $number")
 
-        Log.d(TAG, "Outgoing connection created: ${request?.address?.schemeSpecificPart}")
-
-        // In production, this is where you would initialize the actual
-        // telecom call and bridge it.
-
-        // Simulate active connection after a short delay
-        android.os.Handler(mainLooper).postDelayed({
-            if (connection.state == Connection.STATE_DIALING) {
-                connection.setActive()
-                Log.d(TAG, "Connection → ACTIVE")
-            }
-        }, 2000)
+        // The system will handle the actual telephony — we just proxy the connection.
+        // When the call connects, Telecom informs us via the Connection lifecycle.
 
         return connection
     }
@@ -50,7 +45,7 @@ class CallShieldConnectionService : ConnectionService() {
         phoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest?
     ) {
-        Log.w(TAG, "Outgoing connection failed: ${request?.address}")
+        Log.w(TAG, "Outgoing failed: ${request?.address?.schemeSpecificPart}")
         super.onCreateOutgoingConnectionFailed(phoneAccount, request)
     }
 
@@ -58,22 +53,26 @@ class CallShieldConnectionService : ConnectionService() {
         phoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest?
     ): Connection {
-        Log.d(TAG, "Incoming connection: ${request?.address?.schemeSpecificPart}")
         val connection = CallShieldConnection()
-        connection.setAddress(request?.address, android.telecom.TelecomManager.PRESENTATION_ALLOWED)
+        val address = request?.address
+        val number = address?.schemeSpecificPart ?: "Unknown"
+
+        connection.setAddress(address, TelecomManager.PRESENTATION_ALLOWED)
         connection.setRinging()
+        Log.d(TAG, "Incoming → $number")
+
         return connection
     }
 
     /**
-     * Custom Connection subclass for CallShield calls.
+     * Custom Connection subclass for CallShield-managed calls.
      */
     inner class CallShieldConnection : Connection() {
 
         override fun onAnswer() {
             super.onAnswer()
             setActive()
-            Log.d(TAG, "Call answered")
+            Log.d(TAG, "Call answered — now ACTIVE")
         }
 
         override fun onReject() {
@@ -107,6 +106,12 @@ class CallShieldConnectionService : ConnectionService() {
             setDisconnected(DisconnectCause(DisconnectCause.CANCELED))
             destroy()
             Log.d(TAG, "Call aborted")
+        }
+
+        override fun onAnswer(videoState: Int) {
+            super.onAnswer(videoState)
+            setActive()
+            Log.d(TAG, "Call answered (videoState=$videoState)")
         }
     }
 }

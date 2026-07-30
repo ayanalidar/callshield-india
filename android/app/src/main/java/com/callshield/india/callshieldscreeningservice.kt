@@ -4,149 +4,208 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.callshield.india.ApiModels.LookupRequest
-import com.callshield.india.ApiModels.LookupResponse
+import com.callshield.india.ApiModels.*
 import kotlinx.coroutines.*
 import retrofit2.Response
 
 /**
- * CallScreeningService that intercepts incoming calls, normalizes the
- * Indian phone number, checks a local SQLite cache and then the live
- * API, and decides whether to block, allow, or flag the call.
+ * CallShield CallScreeningService — intercepts every incoming call, normalizes
+ * the Indian phone number, checks a local Room cache and then the live API,
+ * and decides whether to block, allow, or warn about the caller.
+ *
+ * Block logic (per spec):
+ *   threatScore >= 60  → BLOCK (silently reject)
+ *   threatScore >= 35  → WARN  (allow but show overlay with caller info)
+ *   else               → ALLOW (normal ringing)
  */
 class CallShieldScreeningService : CallScreeningService() {
 
     companion object {
         private const val TAG = "CallShieldScreening"
-        private const val CACHE_TTL_MS = 30 * 60 * 1000L // 30 minutes
 
-        // Risk threshold categories
-        private const val THREAT_HIGH = 70
-        private const val THREAT_SUSPICIOUS = 40
+        // Cache TTLs per spec:
+        //   24 hours for known numbers, 7 days for verified scams
+        private const val TTL_KNOWN_MS = 24 * 60 * 60 * 1000L
+        private const val TTL_VERIFIED_MS = 7 * 24 * 60 * 60 * 1000L
+
+        // API call timeout (must stay well under the ~5s screening window)
+        private const val API_TIMEOUT_MS = 3_500L
+
+        // Threat thresholds
+        private const val THRESHOLD_BLOCK = 60
+        private const val THRESHOLD_WARN = 35
+
+        /** Persisted caller ID result for the InCallService to pick up. */
+        @Volatile
+        var lastCallerId: CallerIdResponse? = null
+            private set
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private lateinit var db: LocalDb
-    private lateinit var dao: ScamNumberDao
+    private lateinit var dao: CachedNumberDao
 
     override fun onCreate() {
         super.onCreate()
-        db = CallShieldApplication.instance.database
-        dao = db.scamNumberDao()
-        Log.d(TAG, "CallShield Screening Service created")
+        dao = CallShieldApplication.instance.database.cachedNumberDao()
+        Log.d(TAG, "Screening service created")
     }
 
     override fun onScreenCall(details: Call.Details) {
         val handle = details.handle ?: run {
-            // No caller ID available — allow by default
-            respondToCall(details, CallResponse.Builder().apply {
-                setDisallowCall(false)
-                setSkipCallLog(false)
-            }.build())
-            return
-        }
-
-        val rawNumber = handle.schemeSpecificPart
-        Log.d(TAG, "Screening incoming call from: $rawNumber")
-
-        // Normalize the Indian phone number
-        val normalized = PhoneNumberUtils.normalize(rawNumber)
-        if (normalized == null) {
-            Log.w(TAG, "Could not normalize number: $rawNumber — allowing call")
+            // No caller ID (hidden/private) — allow with a note
+            Log.d(TAG, "No handle — allowing call with no caller info")
             respondAllow(details)
             return
         }
 
-        // Process lookup asynchronously — CallScreeningService gives us
-        // a limited window (~5 sec) so we fire a coroutine and respond ASAP.
+        val rawNumber = handle.schemeSpecificPart
+        Log.d(TAG, "Screening: $rawNumber")
+
+        // Normalize to +91XXXXXXXXXX
+        val normalized = PhoneNumberUtils.normalize(rawNumber)
+        if (normalized == null) {
+            Log.w(TAG, "Cannot normalize '$rawNumber' — allowing")
+            respondAllow(details)
+            return
+        }
+
+        // Fire async — respond within the screening window
         scope.launch {
             try {
-                val result = checkNumberAsync(normalized)
-                respondBasedOnResult(details, normalized, result)
+                val (lookupResult, callerIdResult) = queryBoth(normalized)
+                // Store caller ID for InCallService
+                lastCallerId = callerIdResult
+                respondBasedOnResult(details, normalized, lookupResult)
+            } catch (e: CancellationException) {
+                Log.w(TAG, "Screening cancelled for $normalized")
+                respondAllow(details)
             } catch (e: Exception) {
                 Log.e(TAG, "Screening error for $normalized", e)
+                // Fail-open: allow the call if screening crashes
                 respondAllow(details)
             }
         }
     }
 
     /**
-     * Check local cache first, then fall back to live API.
-     * Returns the LookupResponse or null if unreachable.
+     * Query both /api/lookup and /api/caller-id in parallel, with local cache fallback.
      */
-    private suspend fun checkNumberAsync(normalized: String): LookupResponse? {
-        // 1. Check local SQLite cache
+    private suspend fun queryBoth(normalized: String): Pair<LookupResponse?, CallerIdResponse?> {
+        // 1. Check local cache
         val cached = dao.findByNumber(normalized)
         if (cached != null) {
             val age = System.currentTimeMillis() - cached.lastChecked
-            if (age < CACHE_TTL_MS) {
-                Log.d(TAG, "Cache HIT for $normalized (threat=${cached.threatScore})")
-                return LookupResponse(
-                    phoneNumber = cached.phoneNumber,
-                    verifiedName = cached.verifiedName,
-                    carrier = cached.carrier,
-                    circle = cached.circle,
-                    location = cached.location,
-                    category = cached.category,
-                    threatScore = cached.threatScore,
-                    scamType = cached.scamType,
-                    scamSubType = cached.scamSubType,
-                    shouldBlock = cached.shouldBlock,
-                    verdict = cached.verdict,
-                    recommendation = null,
-                    reportCount = cached.reportCount,
-                    lastReported = null,
-                    rawDetails = null
-                )
+            val ttl = if (cached.verified) TTL_VERIFIED_MS else TTL_KNOWN_MS
+            if (age < ttl) {
+                Log.d(TAG, "Cache HIT: $normalized (threat=${cached.threatScore}, age=${age / 1000}s)")
+                val lookup = cached.toLookupResponse()
+                val callerId = cached.toCallerIdResponse()
+                return Pair(lookup, callerId)
             }
-            Log.d(TAG, "Cache STALE for $normalized — will refresh from API")
+            Log.d(TAG, "Cache STALE: $normalized (age=${age / 1000}s)")
         }
 
-        // 2. Call live API
+        // 2. Call both APIs in parallel with a timeout
         return try {
-            val response: Response<LookupResponse> = withTimeout(3_000L) {
-                ApiClient.api.lookup(
-                    LookupRequest(phoneNumber = normalized, protectionLevel = "high")
-                )
+            val lookupDeferred = async { fetchLookup(normalized) }
+            val callerIdDeferred = async { fetchCallerId(normalized) }
+
+            val (lookup, callerId) = withTimeout(API_TIMEOUT_MS) {
+                Pair(lookupDeferred.await(), callerIdDeferred.await())
             }
 
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
-                // Upsert into cache
-                dao.upsert(ScamNumber(
-                    phoneNumber = normalized,
-                    threatScore = body.threatScore,
-                    scamType = body.scamType,
-                    scamSubType = body.scamSubType,
-                    carrier = body.carrier,
-                    circle = body.circle,
-                    location = body.location,
-                    category = body.category,
-                    verifiedName = body.verifiedName,
-                    shouldBlock = body.shouldBlock,
-                    verdict = body.verdict,
-                    reportCount = body.reportCount,
-                    lastChecked = System.currentTimeMillis()
-                ))
-                Log.d(TAG, "API call OK for $normalized: verdict=${body.verdict}, threat=${body.threatScore}")
-                body
+            // Cache the results
+            cacheResults(normalized, lookup, callerId)
+
+            Pair(lookup, callerId)
+        } catch (e: TimeoutCancellationException) {
+            Log.w(TAG, "API timeout for $normalized — using stale cache if available")
+            // Fall back to stale cache
+            val stale = cached
+            if (stale != null) {
+                Pair(stale.toLookupResponse(), stale.toCallerIdResponse())
             } else {
-                Log.w(TAG, "API error ${response.code()} for $normalized — allowing call")
+                Pair(null, null)
+            }
+        }
+    }
+
+    private suspend fun fetchLookup(normalized: String): LookupResponse? {
+        return try {
+            val response: Response<LookupResponse> = ApiClient.api.lookup(
+                LookupRequest(phoneNumber = normalized, protectionLevel = "strict")
+            )
+            if (response.isSuccessful) {
+                Log.d(TAG, "Lookup OK: $normalized → ${response.body()?.verdict}")
+                response.body()
+            } else {
+                Log.w(TAG, "Lookup HTTP ${response.code()} for $normalized")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "API unreachable for $normalized: ${e.message}")
+            Log.e(TAG, "Lookup failed: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun fetchCallerId(normalized: String): CallerIdResponse? {
+        return try {
+            val response: Response<CallerIdResponse> = ApiClient.api.callerId(
+                CallerIdRequest(phoneNumber = normalized)
+            )
+            if (response.isSuccessful) {
+                Log.d(TAG, "CallerID OK: $normalized → ${response.body()?.displayName}")
+                response.body()
+            } else {
+                Log.w(TAG, "CallerID HTTP ${response.code()} for $normalized")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "CallerID failed: ${e.message}")
             null
         }
     }
 
     /**
-     * Map the lookup result to a CallResponse.
+     * Persist lookup results into Room cache.
+     */
+    private suspend fun cacheResults(
+        normalized: String,
+        lookup: LookupResponse?,
+        callerId: CallerIdResponse?
+    ) {
+        val entry = CachedNumber(
+            phoneNumber = normalized,
+            threatScore = lookup?.threatScore ?: callerId?.threatScore ?: 0,
+            verdict = lookup?.verdict ?: callerId?.verdict ?: "unknown",
+            shouldBlock = lookup?.shouldBlock ?: callerId?.shouldBlock ?: false,
+            isScam = lookup?.isScam ?: callerId?.isScam ?: false,
+            scamType = lookup?.scamType ?: callerId?.scamType,
+            severity = lookup?.severity ?: callerId?.severity,
+            displayName = callerId?.displayName,
+            carrier = lookup?.carrier ?: callerId?.carrier,
+            telecomCircle = lookup?.telecomCircle ?: callerId?.telecomCircle,
+            location = callerId?.location,
+            city = lookup?.city ?: callerId?.city,
+            state = lookup?.state ?: callerId?.state,
+            country = callerId?.country,
+            isIndian = lookup?.isIndian ?: callerId?.isIndian ?: true,
+            numberType = lookup?.numberType ?: callerId?.numberType,
+            isVoip = lookup?.isVoip ?: callerId?.isVoip ?: false,
+            reportCount = lookup?.dbMatch?.reportCount ?: callerId?.reportCount ?: 0,
+            verified = lookup?.dbMatch?.verified ?: callerId?.verified ?: false,
+            source = lookup?.dbMatch?.source ?: callerId?.source,
+            lastChecked = System.currentTimeMillis()
+        )
+        dao.upsert(entry)
+    }
+
+    /**
+     * Apply the verdict: BLOCK / WARN / ALLOW based on threatScore.
      */
     private fun respondBasedOnResult(
         details: Call.Details,
@@ -154,42 +213,42 @@ class CallShieldScreeningService : CallScreeningService() {
         result: LookupResponse?
     ) {
         if (result == null) {
-            // API unreachable — allow the call (fail-open)
+            // API unreachable, no cache — allow (fail-open)
+            Log.w(TAG, "No lookup data for $normalized — allowing")
             respondAllow(details)
             return
         }
 
+        val threatScore = result.threatScore
         val builder = CallResponse.Builder()
 
-        if (result.shouldBlock || result.threatScore >= THREAT_HIGH) {
-            // Block the call: disallow + reject (sends to voicemail/ends)
-            builder.apply {
-                setDisallowCall(true)
-                setRejectCall(true)
-                setSkipCallLog(false)
-                setSkipNotification(false)
+        when {
+            // BLOCK: threatScore >= 60 — silently reject
+            threatScore >= THRESHOLD_BLOCK -> {
+                builder.setDisallowCall(true)
+                builder.setRejectCall(true)
+                builder.setSkipCallLog(false)   // keep in log so user sees it was blocked
+                builder.setSkipNotification(false)
+                respondToCall(details, builder.build())
+                showBlockedNotification(normalized, result)
+                Log.i(TAG, "🚫 BLOCKED: $normalized (${result.scamType ?: "scam"}, score=$threatScore)")
             }
-            respondToCall(details, builder.build())
 
-            // Show a post-block notification
-            showBlockedNotification(normalized, result)
-            Log.i(TAG, "BLOCKED call from $normalized (${result.scamType ?: "unknown"}, threat=${result.threatScore})")
-
-        } else if (result.threatScore >= THREAT_SUSPICIOUS) {
-            // Allow but flag as suspicious — user sees warning overlay
-            builder.apply {
-                setDisallowCall(false)
-                setRejectCall(false)
-                setSkipCallLog(false)
-                setSkipNotification(false)
+            // WARN: threatScore >= 35 — allow but show overlay
+            threatScore >= THRESHOLD_WARN -> {
+                builder.setDisallowCall(false)
+                builder.setRejectCall(false)
+                builder.setSkipCallLog(false)
+                builder.setSkipNotification(false)
+                respondToCall(details, builder.build())
+                Log.i(TAG, "⚠️ WARN: $normalized (${result.scamType ?: "suspicious"}, score=$threatScore)")
             }
-            respondToCall(details, builder.build())
-            Log.i(TAG, "SUSPICIOUS call from $normalized (${result.scamType ?: "unknown"}, threat=${result.threatScore}) — allowed with warning")
 
-        } else {
-            // Clean call — allow silently
-            respondAllow(details)
-            Log.d(TAG, "CLEAN call from $normalized ($result.verdict)")
+            // ALLOW: threatScore < 35 — normal ringing
+            else -> {
+                respondAllow(details)
+                Log.d(TAG, "✅ ALLOW: $normalized (score=$threatScore)")
+            }
         }
     }
 
@@ -203,11 +262,12 @@ class CallShieldScreeningService : CallScreeningService() {
     }
 
     /**
-     * Show a notification that a call was blocked.
+     * Post a notification when a call is blocked, so the user knows.
      */
     private fun showBlockedNotification(normalized: String, result: LookupResponse) {
         val displayNumber = PhoneNumberUtils.forDisplay(normalized)
-        val scamLabel = result.scamType ?: "Suspected Spam"
+        val scamLabel = result.scamType?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
+            ?: "Suspected Spam"
 
         val intent = Intent(this, CallShieldDialerActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -219,8 +279,10 @@ class CallShieldScreeningService : CallScreeningService() {
 
         val notification = NotificationCompat.Builder(this, CallShieldApplication.CHANNEL_ALERTS)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("Blocked: $scamLabel")
-            .setContentText("Call from $displayNumber was blocked")
+            .setContentTitle("Call Blocked: $scamLabel")
+            .setContentText("Call from $displayNumber was blocked by CallShield")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("$displayNumber\n$scamLabel • Threat Score: ${result.threatScore}/100\nBlocked automatically"))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -234,4 +296,74 @@ class CallShieldScreeningService : CallScreeningService() {
         scope.cancel()
         super.onDestroy()
     }
+}
+
+// ── Extension helpers to map DB entities to API responses ──────────────
+
+private fun CachedNumber.toLookupResponse(): ApiModels.LookupResponse {
+    return ApiModels.LookupResponse(
+        phoneNumber = phoneNumber,
+        normalized = phoneNumber,
+        carrier = carrier,
+        telecomCircle = telecomCircle,
+        state = state,
+        city = city,
+        numberType = numberType,
+        isIndian = isIndian,
+        countryName = country,
+        isVoip = isVoip,
+        isScam = isScam,
+        verdict = verdict,
+        threatScore = threatScore,
+        confidence = null,
+        scamType = scamType,
+        scamTypes = scamType?.let { listOf(it) },
+        severity = severity,
+        shouldBlock = shouldBlock,
+        blockReason = null,
+        evidence = null,
+        warnings = null,
+        recommendations = null,
+        dbMatch = ApiModels.DbMatch(
+            found = reportCount > 0,
+            reportCount = reportCount,
+            recentReportCount = null,
+            verified = verified,
+            source = source
+        ),
+        whitelisted = null,
+        responseTime = null,
+        cached = true
+    )
+}
+
+private fun CachedNumber.toCallerIdResponse(): ApiModels.CallerIdResponse {
+    return ApiModels.CallerIdResponse(
+        name = displayName,
+        phoneNumber = phoneNumber,
+        normalized = phoneNumber,
+        displayName = displayName,
+        location = location,
+        city = city,
+        state = state,
+        telecomCircle = telecomCircle,
+        country = country,
+        countryCode = null,
+        isIndian = isIndian,
+        carrier = carrier,
+        numberType = numberType,
+        isVoip = isVoip,
+        isScam = isScam,
+        scamType = scamType,
+        scamTypes = null,
+        severity = severity,
+        threatScore = threatScore,
+        verdict = verdict,
+        shouldBlock = shouldBlock,
+        reportCount = reportCount,
+        recentReportCount = null,
+        verified = verified,
+        source = source,
+        warnings = null
+    )
 }

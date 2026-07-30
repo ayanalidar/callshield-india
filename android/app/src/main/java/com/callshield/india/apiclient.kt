@@ -11,28 +11,38 @@ import java.util.concurrent.TimeUnit
  *
  * Usage:
  *   val response = ApiClient.api.lookup(LookupRequest("+919876543210"))
+ *   val callerInfo = ApiClient.api.callerId(CallerIdRequest("+919876543210"))
  */
 object ApiClient {
 
-    private const val DEFAULT_BASE_URL = "https://callshield-india.vercel.app/"
+    // Default base URL points to the Vercel deployment
+    private const val DEFAULT_BASE_URL = "https://callshield.vercel.app/"
 
-    // Override via BuildConfig or programmatically for self-hosted instances.
+    /** Runtime-overridable base URL (e.g. from settings or BuildConfig). */
     var baseUrl: String = DEFAULT_BASE_URL
         private set
 
-    val api: CallShieldApi by lazy { buildRetrofit().create(CallShieldApi::class.java) }
+    /** Lazily-built Retrofit instance. Re-build after calling [configure]. */
+    @Volatile
+    private var retrofit: Retrofit? = null
+
+    val api: CallShieldApi
+        get() = (retrofit ?: buildRetrofit().also { retrofit = it })
+            .create(CallShieldApi::class.java)
 
     /**
      * Reconfigure base URL at runtime (e.g. from settings screen).
+     * Invalidates the cached Retrofit instance so the next call re-builds.
      */
     fun configure(url: String) {
         baseUrl = url.trimEnd('/') + "/"
+        retrofit = null // force rebuild on next access
     }
 
     private fun buildRetrofit(): Retrofit {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG)
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.HEADERS  // BODY is too verbose for release
             else
                 HttpLoggingInterceptor.Level.NONE
         }

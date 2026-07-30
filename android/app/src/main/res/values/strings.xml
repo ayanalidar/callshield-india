@@ -1,21 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- App -->
     <string name="app_name">CallShield</string>
     <string name="dial_pad_hint">Enter phone number</string>
     <string name="call_button_label">Call</string>
     <string name="backspace_content_desc">Backspace</string>
-    <string name="threat_blocked">⚠️ SCAM BLOCKED</string>
+
+    <!-- Threat badges -->
+    <string name="threat_blocked">🚫 SCAM — BLOCKED</string>
     <string name="threat_suspicious">⚠️ Suspicious Caller</string>
     <string name="threat_safe">✅ Verified Safe</string>
     <string name="report_spam">Report Spam</string>
-    <string name="recent_lookups">Recent Lookups</string>
-    <string name="no_recent">No recent lookups</string>
+
+    <!-- Sections -->
+    <string name="recent_lookups">Recent</string>
+    <string name="no_recent">No recent activity</string>
+
+    <!-- Permissions / Setup -->
     <string name="permission_required">Phone permission required</string>
-    <string name="set_default_dialer">Set CallShield as your default dialer</string>
+    <string name="set_default_dialer">Set CallShield as your default phone app</string>
+
+    <!-- Notification channels -->
     <string name="notification_channel_screening">Call Screening</string>
-    <string name="notification_channel_screening_desc">Shown while CallShield is screening incoming calls</string>
+    <string name="notification_channel_screening_desc">Active while CallShield screens incoming calls</string>
     <string name="notification_channel_alerts">Call Alerts</string>
-    <string name="notification_channel_alerts_desc">Notifications when a call is blocked or flagged</string>
+    <string name="notification_channel_alerts_desc">Notifications for blocked or flagged calls</string>
+
+    <!-- Dial pad -->
     <string name="dial_pad_zero">0</string>
     <string name="dial_pad_one">1</string>
     <string name="dial_pad_two">2</string>
@@ -26,6 +38,17 @@
     <string name="dial_pad_seven">7</string>
     <string name="dial_pad_eight">8</string>
     <string name="dial_pad_nine">9</string>
-    <string name="dial_pad_star">*</string>
-    <string name="dial_pad_hash">#</string>
+    <string name="dial_pad_star">Star</string>
+    <string name="dial_pad_hash">Hash</string>
+
+    <!-- Navigation -->
+    <string name="nav_dialer">Dialer</string>
+    <string name="nav_recents">Recents</string>
+    <string name="nav_contacts">Contacts</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- In-call -->
+    <string name="incall_unknown_caller">Unknown Caller</string>
+    <string name="incall_no_reports">No community reports</string>
+
 </resources>

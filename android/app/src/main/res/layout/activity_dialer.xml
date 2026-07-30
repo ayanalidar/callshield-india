@@ -1,30 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/background"
-    android:padding="16dp">
+    android:paddingBottom="8dp">
 
-    <!-- Header -->
-    <TextView
-        android:layout_width="wrap_content"
+    <!-- Header / Brand -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="CallShield"
-        android:textColor="@color/accent"
-        android:textSize="20sp"
-        android:fontFamily="sans-serif-medium"
-        android:layout_marginBottom="8dp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="4dp">
 
-    <!-- Number Input Area -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textColor="@color/accent"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/statusIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛡️"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+    <!-- Number Input + Lookup Card Area -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="@color/surface"
         android:padding="16dp"
-        android:layout_marginBottom="8dp">
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:elevation="2dp">
 
+        <!-- Number input field -->
         <EditText
             android:id="@+id/numberInput"
             android:layout_width="match_parent"
@@ -32,117 +55,193 @@
             android:hint="@string/dial_pad_hint"
             android:textColor="@color/text_primary"
             android:textColorHint="@color/text_secondary"
-            android:textSize="28sp"
+            android:textSize="26sp"
             android:fontFamily="sans-serif-medium"
             android:inputType="phone"
             android:background="@null"
-            android:padding="8dp" />
+            android:paddingVertical="12dp"
+            android:paddingHorizontal="4dp"
+            android:importantForAutofill="no" />
 
-        <TextView
-            android:id="@+id/threatBadge"
-            android:layout_width="wrap_content"
+        <!-- Lookup card (initially GONE, shown on lookup results) -->
+        <LinearLayout
+            android:id="@+id/lookupCard"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/threat_badge_background"
+            android:padding="12dp"
+            android:layout_marginTop="8dp"
             android:visibility="gone"
-            style="@style/ThreatBadge"
-            tools:text="⚠️ SCAM — Insurance Fraud"
-            tools:visibility="visible" />
+            tools:visibility="visible">
 
-        <TextView
-            android:id="@+id/carrierInfo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            style="@style/CarrierInfo"
-            tools:text="Jio · Mumbai · Maharashtra"
-            tools:visibility="visible" />
+            <TextView
+                android:id="@+id/threatBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:fontFamily="sans-serif-medium"
+                tools:text="✅ Safe"
+                tools:textColor="@android:color/holo_green_dark" />
+
+            <TextView
+                android:id="@+id/callerNameText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="@color/text_primary"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginTop="4dp"
+                tools:text="Jio · 234 reports"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/carrierLocationText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"
+                android:fontFamily="sans-serif"
+                android:layout_marginTop="2dp"
+                tools:text="🏢 Jio · Delhi NCR"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/reportInfoText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:fontFamily="sans-serif"
+                android:layout_marginTop="2dp"
+                tools:text="234 community reports · upi_fraud"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/blockReportButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Block &amp; Report"
+                android:textSize="12sp"
+                android:textColor="@android:color/white"
+                android:backgroundTint="@color/danger"
+                android:layout_marginTop="8dp"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
-    <!-- Dial Pad Grid -->
+    <!-- Dial Pad Grid (3x4 + bottom row with backspace and call) -->
     <GridLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:columnCount="3"
-        android:rowCount="4">
+        android:rowCount="4"
+        android:paddingHorizontal="12dp">
 
         <Button
             android:id="@+id/btn1"
             style="@style/DialPadButton"
-            android:text="1" />
+            android:text="1"
+            android:contentDescription="@string/dial_pad_one" />
 
         <Button
             android:id="@+id/btn2"
             style="@style/DialPadButton"
-            android:text="2" />
-        <!-- Subtext ABC not shown on dial pad -->
+            android:text="2"
+            android:contentDescription="@string/dial_pad_two" />
 
         <Button
             android:id="@+id/btn3"
             style="@style/DialPadButton"
-            android:text="3" />
+            android:text="3"
+            android:contentDescription="@string/dial_pad_three" />
 
         <Button
             android:id="@+id/btn4"
             style="@style/DialPadButton"
-            android:text="4" />
+            android:text="4"
+            android:contentDescription="@string/dial_pad_four" />
 
         <Button
             android:id="@+id/btn5"
             style="@style/DialPadButton"
-            android:text="5" />
+            android:text="5"
+            android:contentDescription="@string/dial_pad_five" />
 
         <Button
             android:id="@+id/btn6"
             style="@style/DialPadButton"
-            android:text="6" />
+            android:text="6"
+            android:contentDescription="@string/dial_pad_six" />
 
         <Button
             android:id="@+id/btn7"
             style="@style/DialPadButton"
-            android:text="7" />
+            android:text="7"
+            android:contentDescription="@string/dial_pad_seven" />
 
         <Button
             android:id="@+id/btn8"
             style="@style/DialPadButton"
-            android:text="8" />
+            android:text="8"
+            android:contentDescription="@string/dial_pad_eight" />
 
         <Button
             android:id="@+id/btn9"
             style="@style/DialPadButton"
-            android:text="9" />
+            android:text="9"
+            android:contentDescription="@string/dial_pad_nine" />
 
         <Button
             android:id="@+id/btnStar"
             style="@style/DialPadButton"
-            android:text="*" />
+            android:text="*"
+            android:textSize="32sp"
+            android:contentDescription="@string/dial_pad_star" />
 
         <Button
             android:id="@+id/btn0"
             style="@style/DialPadButton"
-            android:text="0" />
+            android:text="0"
+            android:contentDescription="@string/dial_pad_zero" />
 
         <Button
             android:id="@+id/btnHash"
             style="@style/DialPadButton"
-            android:text="#" />
+            android:text="#"
+            android:contentDescription="@string/dial_pad_hash" />
     </GridLayout>
 
-    <!-- Bottom Row: Backspace + Call -->
+    <!-- Bottom Action Row: Backspace + Call -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
-        android:padding="8dp">
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="4dp">
 
         <Button
             android:id="@+id/btnBackspace"
             style="@style/DialPadButton"
-            android:layout_width="80dp"
+            android:layout_width="72dp"
             android:layout_height="64dp"
             android:text="⌫"
-            android:textSize="20sp" />
+            android:textSize="22sp"
+            android:contentDescription="@string/backspace_content_desc" />
+
+        <Button
+            android:id="@+id/btnBackspaceLong"
+            style="@style/DialPadButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:text="✕"
+            android:textSize="16sp"
+            android:alpha="0.5" />
 
         <Space
             android:layout_width="0dp"
@@ -157,26 +256,99 @@
             android:text="📞"
             android:textSize="28sp"
             android:stateListAnimator="@null"
-            android:elevation="4dp" />
+            android:elevation="6dp"
+            android:contentDescription="@string/call_button_label" />
 
     </LinearLayout>
 
-    <!-- Recent Lookups -->
+    <!-- Recent Calls / Lookups -->
     <TextView
+        android:id="@+id/recentLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/recent_lookups"
         android:textColor="@color/text_secondary"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:fontFamily="sans-serif-medium"
-        android:layout_marginTop="8dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
         android:layout_marginBottom="4dp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recentRecycler"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
+        android:layout_height="0dp"
+        android:layout_weight="0.28"
+        android:layout_marginHorizontal="12dp"
         android:background="@color/surface"
-        android:padding="4dp" />
+        android:padding="4dp"
+        android:clipToPadding="false" />
+
+    <!-- Bottom Navigation Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="@color/surface"
+        android:elevation="8dp"
+        android:gravity="center">
+
+        <LinearLayout
+            android:id="@+id/navDialer"
+            style="@style/NavItem"
+            android:contentDescription="Dialer">
+
+            <TextView
+                style="@style/NavIcon"
+                android:text="📞" />
+
+            <TextView
+                style="@style/NavLabel"
+                android:text="Dialer" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/navRecents"
+            style="@style/NavItem"
+            android:contentDescription="Recents">
+
+            <TextView
+                style="@style/NavIcon"
+                android:text="🕐" />
+
+            <TextView
+                style="@style/NavLabel"
+                android:text="Recents" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/navContacts"
+            style="@style/NavItem"
+            android:contentDescription="Contacts">
+
+            <TextView
+                style="@style/NavIcon"
+                android:text="👤" />
+
+            <TextView
+                style="@style/NavLabel"
+                android:text="Contacts" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/navSettings"
+            style="@style/NavItem"
+            android:contentDescription="Settings">
+
+            <TextView
+                style="@style/NavIcon"
+                android:text="⚙️" />
+
+            <TextView
+                style="@style/NavLabel"
+                android:text="Settings" />
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

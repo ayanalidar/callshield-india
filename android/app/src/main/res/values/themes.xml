@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base dark green theme matching the web app -->
+
+    <!-- 
+        CallShield India — Material 3 Dark Theme
+        Primary: #1B5E20 (dark green), Surface: #121212
+    -->
+
+    <!-- Base Dark Theme -->
     <style name="Theme.CallShield" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
@@ -14,30 +20,43 @@
         <item name="colorOnPrimary">@color/on_primary</item>
     </style>
 
-    <!-- Dial pad button style -->
+    <!-- Dial Pad Button -->
     <style name="DialPadButton" parent="Widget.AppCompat.Button.Borderless">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">64dp</item>
-        <item name="android:textSize">24sp</item>
+        <item name="android:layout_height">68dp</item>
+        <item name="android:textSize">26sp</item>
         <item name="android:textColor">@color/dial_pad_text</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:fontFamily">sans-serif-light</item>
         <item name="android:background">?attr/selectableItemBackground</item>
         <item name="android:textAllCaps">false</item>
     </style>
 
-    <!-- Threat badge text style -->
-    <style name="ThreatBadge" parent="TextAppearance.AppCompat.Body1">
-        <item name="android:padding">8dp</item>
-        <item name="android:background">@drawable/threat_badge_background</item>
-        <item name="android:textSize">14sp</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
+    <!-- Bottom Navigation Item -->
+    <style name="NavItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
     </style>
 
-    <!-- Carrier info text -->
-    <style name="CarrierInfo" parent="TextAppearance.AppCompat.Body2">
-        <item name="android:textSize">12sp</item>
+    <!-- Nav Icon (emoji) -->
+    <style name="NavIcon">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">20sp</item>
+    </style>
+
+    <!-- Nav Label -->
+    <style name="NavLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/text_secondary</item>
         <item name="android:fontFamily">sans-serif</item>
-        <item name="android:layout_marginTop">4dp</item>
     </style>
+
 </resources>

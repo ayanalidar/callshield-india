@@ -1,117 +1,12 @@
 /**
- * POST /api/caller-id — Identify caller with name, location, carrier, scam status
+ * POST /api/caller-id — Complete caller identification
  * 
- * Combines: number intel (carrier/circle), DB lookup (scam/name), crowd reports
- * Used by the Android dialer for incoming call screen and dial-pad lookup.
+ * Returns: name, displayName, location (city/state/circle), carrier,
+ * scamType, threatScore, reportCount, block advisory, plus device-enriched
+ * fields for IMEI + tower signaling (filled by Android client).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-export async function POST(request: NextRequest) {
-  try {
-    const { phoneNumber } = await request.json();
-    if (!phoneNumber || phoneNumber.trim().length < 6) {
-      return NextResponse.json(
-        { error: 'Valid phone number required', code: 'INVALID_NUMBER' },
-        { status: 400 }
-      );
-    }
-
-    // Dynamic imports to avoid SSR issues
-    const { detectScam } = await import('@/engines/scam-detector');
-    const { lookupScamNumber } = await import('@/db/supabase');
-
-    const normalized = normalizeIndian(phoneNumber.trim());
-
-    // Edge analysis
-    const edgeResult = detectScam(normalized, { protectionLevel: 'standard' });
-    const intel = edgeResult.numberIntel;
-
-    // Build location from edge analysis
-    const circle = intel.telecomCircle || null;
-    const circleLoc = circle ? CITY_MAP[circle] : null;
-    const location = circleLoc?.area || circle || (intel.isIndian ? 'India' : intel.countryName || 'Unknown');
-
-    // DB enrichment
-    let dbMatch: any = null;
-    try { if (normalized) dbMatch = await lookupScamNumber(normalized); } catch {}
-
-    // Carrier
-    const carrier = dbMatch?.carrier || intel.carrier || (intel.isIndian ? 'Indian Mobile' : 'Unknown');
-
-    // Build display name
-    let displayName = carrier;
-    if (dbMatch?.scamType) {
-      displayName = dbMatch.scamType.replace(/_/g, ' ') + ' ' + carrier;
-    }
-    if (dbMatch?.reportCount > 10) {
-      displayName = carrier + ' ' + dbMatch.reportCount + ' reports';
-    }
-
-    // Scoring
-    const threatScore = dbMatch
-      ? Math.round((dbMatch.threatScore || 50) * 0.7 + edgeResult.threatScore * 0.3)
-      : edgeResult.threatScore;
-
-    let verdict = 'safe';
-    if (threatScore >= 80) verdict = 'critical';
-    else if (threatScore >= 60) verdict = 'scam';
-    else if (threatScore >= 35) verdict = 'suspicious';
-
-    const shouldBlock = verdict === 'scam' || verdict === 'critical';
-    const severity = threatScore >= 80 ? 'critical' : threatScore >= 60 ? 'high' : threatScore >= 35 ? 'medium' : 'low';
-
-    const warnings: string[] = [];
-    if (shouldBlock) warnings.push('This number has been reported as a scam');
-    if (dbMatch?.verified) warnings.push('Verified scam number in community database');
-    if (intel.numberType === 'voip') warnings.push('VoIP number - often used for spam');
-
-    return NextResponse.json({
-      phoneNumber: normalized,
-      normalized,
-      name: dbMatch?.scamType || null,
-      displayName,
-      location,
-      city: circleLoc?.city || circle || null,
-      state: circleLoc?.state || null,
-      telecomCircle: circle,
-      country: intel.isIndian ? 'India' : intel.countryName || 'Unknown',
-      countryCode: intel.countryCode || null,
-      isIndian: intel.isIndian,
-      carrier,
-      numberType: intel.numberType || dbMatch?.numberType || 'mobile',
-      isVoip: intel.isVoip || false,
-      isScam: dbMatch ? true : edgeResult.isScam,
-      scamType: dbMatch?.scamType || edgeResult.primaryScamType || null,
-      scamTypes: dbMatch?.scamType ? [dbMatch.scamType] : edgeResult.scamTypes || [],
-      severity,
-      threatScore,
-      verdict,
-      shouldBlock,
-      reportCount: dbMatch?.reportCount || 0,
-      recentReportCount: dbMatch?.recentReportCount || 0,
-      verified: dbMatch?.verified || false,
-      source: dbMatch?.source || 'edge-analysis',
-      warnings,
-    });
-
-  } catch (error: any) {
-    console.error('[Caller ID] Error:', error.message);
-    return NextResponse.json(
-      { error: 'Lookup failed', code: 'SERVER_ERROR' },
-      { status: 500 }
-    );
-  }
-}
-
-function normalizeIndian(raw: string): string {
-  let n = raw.replace(/[^0-9+]/g, '');
-  if (n.length === 10) n = '+91' + n;
-  else if (n.length === 11 && n.startsWith('0')) n = '+91' + n.slice(1);
-  else if (n.length === 12 && n.startsWith('91')) n = '+' + n;
-  else if (n.length > 10 && !n.startsWith('+')) n = '+' + n;
-  return n;
-}
 
 const CITY_MAP: Record<string, { city: string; state: string; area: string }> = {
   'Delhi': { city: 'New Delhi', state: 'Delhi', area: 'Delhi NCR' },
@@ -132,5 +27,117 @@ const CITY_MAP: Record<string, { city: string; state: string; area: string }> = 
   'Jharkhand': { city: 'Ranchi', state: 'Jharkhand', area: 'Jharkhand' },
   'Gujarat': { city: 'Ahmedabad', state: 'Gujarat', area: 'Gujarat' },
   'West Bengal': { city: 'Kolkata', state: 'West Bengal', area: 'West Bengal' },
+  'Rajasthan': { city: 'Jaipur', state: 'Rajasthan', area: 'Rajasthan' },
+  'Maharashtra': { city: 'Mumbai', state: 'Maharashtra', area: 'Maharashtra' },
+  'Madhya Pradesh': { city: 'Bhopal', state: 'Madhya Pradesh', area: 'Madhya Pradesh' },
   'Pan-India': { city: 'India', state: 'Pan-India', area: 'India' },
 };
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { phoneNumber, deviceInfo } = body;
+
+    if (!phoneNumber || phoneNumber.trim().length < 6) {
+      return NextResponse.json({ error: 'Valid phone number required' }, { status: 400 });
+    }
+
+    const { detectScam } = await import('@/engines/scam-detector');
+    const { lookupScamNumber } = await import('@/db/supabase');
+
+    const normalized = normalizePhone(phoneNumber.trim());
+
+    // Edge analysis
+    const edge = detectScam(normalized, { protectionLevel: 'standard' });
+    const intel = edge.numberIntel;
+
+    // DB enrichment
+    let db: any = null;
+    try { db = await lookupScamNumber(normalized); } catch {}
+
+    // Location
+    const circle = db?.telecom_circle || intel.telecomCircle || null;
+    const circleLoc = circle ? CITY_MAP[circle] : null;
+    const location = circleLoc?.area || circle || (intel.isIndian ? 'India' : intel.countryName || 'Unknown');
+    const city = circleLoc?.city || circle || null;
+    const state = circleLoc?.state || null;
+
+    // Carrier
+    const carrier = db?.carrier || intel.carrier || (intel.isIndian ? 'Indian Mobile' : 'Unknown');
+
+    // Name / display — camelCase from lookupScamNumber
+    const scamLabel = db?.scamType?.replace(/_/g, ' ') || null;
+    const reportCount = db?.reportCount || 0;
+    const displayName = scamLabel
+      ? scamLabel + ' · ' + carrier + (reportCount > 10 ? ' (' + reportCount + ' reports)' : '')
+      : carrier + (reportCount > 10 ? ' (' + reportCount + ' reports)' : '');
+
+    // Scoring — lookupScamNumber returns camelCase (threatScore, not threat_score)
+    const threatScore = db
+      ? Math.round((db.threatScore || 50) * 0.7 + edge.threatScore * 0.3)
+      : edge.threatScore;
+
+    let verdict = 'safe';
+    if (threatScore >= 80) verdict = 'critical';
+    else if (threatScore >= 60) verdict = 'scam';
+    else if (threatScore >= 35) verdict = 'suspicious';
+
+    const severity = threatScore >= 80 ? 'critical' : threatScore >= 60 ? 'high' : threatScore >= 35 ? 'medium' : 'low';
+
+    const warnings: string[] = [];
+    if (verdict === 'scam' || verdict === 'critical') warnings.push('This number has been reported as a scam');
+    if (db?.verified) warnings.push('Verified scam number in community database');
+    if (intel.numberType === 'voip') warnings.push('VoIP number — often used for spam');
+    if (intel.countryCode && intel.countryCode !== '91') warnings.push(`International call from ${intel.countryName || intel.countryCode}`);
+
+    // Tower / device info passed through from Android client
+    const towerInfo = deviceInfo || null;
+
+    return NextResponse.json({
+      phoneNumber: normalized,
+      name: scamLabel || null,
+      displayName,
+      location,
+      city,
+      state,
+      telecomCircle: circle,
+      carrier,
+      numberType: intel.numberType || 'mobile',
+      isIndian: intel.isIndian,
+      isVoip: intel.isVoip || false,
+      isScam: db ? true : edge.isScam,
+      scamType: db?.scam_type || edge.primaryScamType || null,
+      severity,
+      threatScore,
+      verdict,
+      shouldBlock: verdict === 'scam' || verdict === 'critical',
+      reportCount,
+      recentReportCount: db?.recent_report_count || 0,
+      verified: db?.verified || false,
+      source: db?.source || 'edge-analysis',
+      warnings,
+      // Device-level info (from network — Android fills via local APIs)
+      deviceInfo: towerInfo ? {
+        imei: towerInfo.imei || null,
+        deviceModel: towerInfo.deviceModel || null,
+        networkType: towerInfo.networkType || null,
+        signalStrength: towerInfo.signalStrength || null,
+        roaming: towerInfo.roaming || false,
+        towerLocation: towerInfo.towerLocation || null,
+      } : null,
+    });
+
+  } catch (e: any) {
+    console.error('[Caller ID]', e.message);
+    return NextResponse.json({ error: 'Lookup failed' }, { status: 500 });
+  }
+}
+
+function normalizePhone(raw: string): string {
+  let n = raw.replace(/[^0-9+]/g, '');
+  if (n.length === 10) n = '+91' + n;
+  else if (n.length === 11 && n.startsWith('0')) n = '+91' + n.slice(1);
+  else if (n.length === 12 && n.startsWith('91')) n = '+' + n;
+  else if (n.length > 10 && !n.startsWith('+')) n = '+' + n;
+  return n;
+}
