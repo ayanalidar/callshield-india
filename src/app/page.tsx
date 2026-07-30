@@ -63,7 +63,7 @@ export default function RootPage() {
         {/* Cards */}
         <div className="root-cards">
           {/* Dashboard Card */}
-          <Link href="/" className="root-card">
+          <Link href="/dashboard" className="root-card">
             <div className="root-card-icon" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
               <i className="fas fa-chart-line" />
             </div>
