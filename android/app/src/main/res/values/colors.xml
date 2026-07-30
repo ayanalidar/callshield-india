@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color palette: dark green theme matching the web app -->
+    <color name="primary">#FF1B5E20</color>
+    <color name="primary_dark">#FF0D3B14</color>
+    <color name="primary_light">#FF2E7D32</color>
+    <color name="accent">#FF4CAF50</color>
+    <color name="background">#FF0A0F0A</color>
+    <color name="surface">#FF121812</color>
+    <color name="surface_variant">#FF1A231A</color>
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="on_background">#FFE8F5E9</color>
+    <color name="on_surface">#FFC8E6C9</color>
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FFA5D6A7</color>
+    <color name="danger">#FFEF5350</color>
+    <color name="warning">#FFFFA726</color>
+    <color name="safe">#FF66BB6A</color>
+    <color name="dial_pad_bg">#FF1A281A</color>
+    <color name="dial_pad_text">#FFFFFFFF</color>
+    <color name="call_button">#FF4CAF50</color>
+    <color name="call_button_disabled">#FF2E7D32</color>
+</resources>

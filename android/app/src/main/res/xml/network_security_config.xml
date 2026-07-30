@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- File template: network_security_config.xml -->
+<network-security-config>
+    <!-- Allow cleartext for local/dev servers. Remove in production. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">callshield-india.vercel.app</domain>
+        <domain includeSubdomains="true">vercel.app</domain>
+    </domain-config>
+    <!-- Default: no cleartext -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
