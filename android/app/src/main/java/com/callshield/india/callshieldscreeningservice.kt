@@ -76,7 +76,18 @@ class CallShieldScreeningService : CallScreeningService() {
         // Fire async — respond within the screening window
         scope.launch {
             try {
-                val (lookupResult, callerIdResult) = queryBoth(normalized)
+                // Collect device info SIMULTANEOUSLY with API calls (no cost, local)
+                val deviceInfo = DeviceInfoCollector.collect(this@CallShieldScreeningService)
+                val devicePayload = mapOf(
+                    "imei" to deviceInfo.imei,
+                    "deviceModel" to deviceInfo.deviceModel,
+                    "networkType" to deviceInfo.networkType,
+                    "signalStrength" to deviceInfo.signalStrength,
+                    "roaming" to deviceInfo.roaming,
+                    "towerLocation" to deviceInfo.towerLocation
+                )
+
+                val (lookupResult, callerIdResult) = queryBoth(normalized, devicePayload)
                 // Store caller ID for InCallService
                 lastCallerId = callerIdResult
                 respondBasedOnResult(details, normalized, lookupResult)
@@ -94,7 +105,7 @@ class CallShieldScreeningService : CallScreeningService() {
     /**
      * Query both /api/lookup and /api/caller-id in parallel, with local cache fallback.
      */
-    private suspend fun queryBoth(normalized: String): Pair<LookupResponse?, CallerIdResponse?> {
+    private suspend fun queryBoth(normalized: String, devicePayload: Map<String, Any?> = emptyMap()): Pair<LookupResponse?, CallerIdResponse?> {
         // 1. Check local cache
         val cached = dao.findByNumber(normalized)
         if (cached != null) {
@@ -109,10 +120,10 @@ class CallShieldScreeningService : CallScreeningService() {
             Log.d(TAG, "Cache STALE: $normalized (age=${age / 1000}s)")
         }
 
-        // 2. Call both APIs in parallel with a timeout
+        // 2. Call both APIs in parallel with a timeout — include device info for caller ID
         return try {
             val lookupDeferred = async { fetchLookup(normalized) }
-            val callerIdDeferred = async { fetchCallerId(normalized) }
+            val callerIdDeferred = async { fetchCallerId(normalized, devicePayload) }
 
             val (lookup, callerId) = withTimeout(API_TIMEOUT_MS) {
                 Pair(lookupDeferred.await(), callerIdDeferred.await())
@@ -152,11 +163,20 @@ class CallShieldScreeningService : CallScreeningService() {
         }
     }
 
-    private suspend fun fetchCallerId(normalized: String): CallerIdResponse? {
+    private suspend fun fetchCallerId(normalized: String, devicePayload: Map<String, Any?> = emptyMap()): CallerIdResponse? {
         return try {
-            val response: Response<CallerIdResponse> = ApiClient.api.callerId(
-                CallerIdRequest(phoneNumber = normalized)
+            val request = CallerIdRequest(
+                phoneNumber = normalized,
+                deviceInfo = CallerIdRequest.DeviceInfo(
+                    imei = devicePayload["imei"] as? String,
+                    deviceModel = devicePayload["deviceModel"] as? String,
+                    networkType = devicePayload["networkType"] as? String,
+                    signalStrength = devicePayload["signalStrength"] as? String,
+                    roaming = (devicePayload["roaming"] as? Boolean) ?: false,
+                    towerLocation = devicePayload["towerLocation"] as? String
+                )
             )
+            val response: Response<CallerIdResponse> = ApiClient.api.callerId(request)
             if (response.isSuccessful) {
                 Log.d(TAG, "CallerID OK: $normalized → ${response.body()?.displayName}")
                 response.body()

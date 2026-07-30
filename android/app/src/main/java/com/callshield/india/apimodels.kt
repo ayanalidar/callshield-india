@@ -65,8 +65,18 @@ object ApiModels {
      * POST /api/caller-id request body.
      */
     data class CallerIdRequest(
-        @SerializedName("phoneNumber") val phoneNumber: String
-    )
+        @SerializedName("phoneNumber") val phoneNumber: String,
+        @SerializedName("deviceInfo") val deviceInfo: DeviceInfo? = null
+    ) {
+        data class DeviceInfo(
+            @SerializedName("imei") val imei: String?,
+            @SerializedName("deviceModel") val deviceModel: String?,
+            @SerializedName("networkType") val networkType: String?,
+            @SerializedName("signalStrength") val signalStrength: String?,
+            @SerializedName("roaming") val roaming: Boolean,
+            @SerializedName("towerLocation") val towerLocation: String?
+        )
+    }
 
     /**
      * POST /api/caller-id response body — caller identity for display.
@@ -97,8 +107,18 @@ object ApiModels {
         @SerializedName("recentReportCount") val recentReportCount: Int?,
         @SerializedName("verified") val verified: Boolean,
         @SerializedName("source") val source: String?,
-        @SerializedName("warnings") val warnings: List<String>?
-    )
+        @SerializedName("warnings") val warnings: List<String>?,
+        @SerializedName("deviceInfo") val deviceInfo: DeviceInfo? = null
+    ) {
+        data class DeviceInfo(
+            @SerializedName("imei") val imei: String?,
+            @SerializedName("deviceModel") val deviceModel: String?,
+            @SerializedName("networkType") val networkType: String?,
+            @SerializedName("signalStrength") val signalStrength: String?,
+            @SerializedName("roaming") val roaming: Boolean,
+            @SerializedName("towerLocation") val towerLocation: String?
+        )
+    }
 
     // ── Report ────────────────────────────────────────────────────
 

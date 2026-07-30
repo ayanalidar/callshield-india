@@ -144,6 +144,39 @@ class CallShieldInCallService : InCallService() {
             })
         }
 
+        // ── Device Info (IMEI / Tower / Signal) ──
+        callerId?.deviceInfo?.let { device ->
+            overlay.addView(TextView(this).apply {
+                text = "📱 ${device.deviceModel ?: \"Unknown\"} · ${device.networkType ?: \"Unknown\"}"
+                textSize = 11f
+                setTextColor(TEXT_DIM)
+                setPadding(0, 2, 0, 2)
+            })
+            device.signalStrength?.let { sig ->
+                overlay.addView(TextView(this).apply {
+                    text = "📶 Signal: $sig${if (device.roaming) \" | 🌐 Roaming\" else \"\"}"
+                    textSize = 11f
+                    setTextColor(TEXT_DIM)
+                })
+            }
+            device.towerLocation?.let { tower ->
+                overlay.addView(TextView(this).apply {
+                    text = "🗼 Tower: $tower"
+                    textSize = 10f
+                    setTextColor(TEXT_DIM)
+                    maxLines = 2
+                })
+            }
+            device.imei?.let { imei ->
+                overlay.addView(TextView(this).apply {
+                    text = "🔑 IMEI: ${imei.take(8)}...${imei.takeLast(4)}"
+                    textSize = 10f
+                    setTextColor(TEXT_DIM)
+                    setPadding(0, 0, 0, 6)
+                })
+            }
+        }
+
         // ── Threat / Scam Warning ──
         if (callerId != null && callerId.isScam) {
             val scamLabel = callerId.scamType
