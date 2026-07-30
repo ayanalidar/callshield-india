@@ -71,7 +71,8 @@ export async function lookupScamNumber(normalizedNumber: string): Promise<DbScam
   const { data, error } = await client
     .from('scam_numbers')
     .select('*')
-    .eq('normalized_number', normalizedNumber)
+    .or(`normalized_number.eq.${normalizedNumber},phone_number.eq.${normalizedNumber}`)
+    .limit(1)
     .single();
 
   if (error) {

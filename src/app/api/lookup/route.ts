@@ -180,6 +180,7 @@ export async function POST(request: NextRequest) {
 
         // Check known scam DB
         const dbScam = await lookupScamNumber(edgeResult.normalized);
+        console.log('[lookup] DB check for', edgeResult.normalized, ':', dbScam ? 'FOUND' : 'NOT FOUND');
         
         if (dbScam) {
           response.dbMatch = {
@@ -198,14 +199,15 @@ export async function POST(request: NextRequest) {
             response.scamTypes = [dbScam.scamType, ...response.scamTypes];
           }
 
-          // Boost threat score with DB confirmation
-          const dbBoost = dbScam.verified ? 15 : 10;
-          response.threatScore = Math.min(100, response.threatScore + dbBoost);
+          // Merge DB threat score with edge score (weighted: DB gets 70% weight, edge 30%)
+          const dbScore = dbScam.threatScore || 50;
+          response.threatScore = Math.min(100, Math.round(dbScore * 0.7 + response.threatScore * 0.3));
 
           // Re-calculate verdict with DB data
           if (response.threatScore >= 80) response.verdict = 'critical';
           else if (response.threatScore >= 60) response.verdict = 'scam';
           else if (response.threatScore >= 40 && response.dbMatch.reportCount > 5) response.verdict = 'scam';
+          else if (response.threatScore >= 35) response.verdict = 'suspicious';
 
           response.confidence = Math.min(1, response.confidence + 0.2);
           response.isScam = response.threatScore >= 
