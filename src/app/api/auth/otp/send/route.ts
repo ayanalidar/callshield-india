@@ -29,12 +29,19 @@ export async function POST(request: NextRequest) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const isDev = process.env.NODE_ENV !== 'production' || process.env.OTP_DEV_MODE === '1';
 
     if (!supabaseUrl || !anonKey) {
       return NextResponse.json(
         { error: 'Auth service not configured', code: 'CONFIG' },
         { status: 500 }
       );
+    }
+
+    // Dev mode: simulate OTP (Supabase phone auth requires paid SMS provider)
+    if (isDev) {
+      console.log(`[DEV OTP] Simulated OTP for ${normalizedPhone}: use any 6-digit code`);
+      return NextResponse.json({ success: true, message: 'OTP sent (dev mode — use any 6 digits)', devMode: true });
     }
 
     const supabase = createClient(supabaseUrl, anonKey);
