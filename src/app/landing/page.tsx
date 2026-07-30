@@ -172,6 +172,8 @@ export default function LandingPage() {
           </div>
           <div className="lnav-links">
             <a href="/">Dashboard</a>
+            <a href="/trends">Trends</a>
+            <a href="/wiki">Wiki</a>
             <a href="/admin">Admin</a>
           </div>
         </div>
@@ -419,6 +421,8 @@ export default function LandingPage() {
           </div>
           <div className="lfooter-links">
             <a href="/">Dashboard</a>
+            <a href="/trends">Trends</a>
+            <a href="/wiki">Wiki</a>
             <a href="/admin">Admin</a>
             <a href="/landing">Landing</a>
           </div>

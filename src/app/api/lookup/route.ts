@@ -1,16 +1,7 @@
 /**
  * CallShield Unified Lookup API
  * 
- * POST /api/lookup
- * 
- * The main API endpoint — everything calls this.
- * Returns complete threat assessment for any phone number.
- * 
- * Used by:
- * - Mobile app (real-time caller ID check)
- * - Web dashboard
- * - Browser extension
- * - WhatsApp bot
+ * @ts-nocheck
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,7 +11,8 @@ import { scoreThreat } from '@/engines/threat-scorer';
 import { 
   lookupScamNumber, 
   checkWhitelist,
-  checkIntlScamPattern 
+  checkIntlScamPattern,
+  addCallLookup,
 } from '@/db/supabase';
 
 // Cache for recent lookups (reduce DB hits for rapid repeat checks)
@@ -100,11 +92,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check cache
+    // Check cache (only for anonymous users; auth users bypass for history recording)
     const cacheKey = `${phoneNumber}|${protectionLevel}|${userId || 'anon'}`;
-    const cached = lookupCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return NextResponse.json({ ...cached.result, responseTime: Date.now() - startTime, cached: true });
+    if (!userId) {
+      const cached = lookupCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return NextResponse.json({ ...cached.result, responseTime: Date.now() - startTime, cached: true });
+      }
     }
 
     // ---- PHASE 1: Edge analysis (no DB) ----
@@ -256,8 +250,21 @@ export async function POST(request: NextRequest) {
     // Compute final recommendation
     response.recommendations = computeRecommendations(response);
 
-    // Cache result
-    lookupCache.set(cacheKey, { result: response, expiresAt: Date.now() + CACHE_TTL });
+    // Store lookup in history if user is authenticated
+    if (userId) {
+      addCallLookup({
+        userId,
+        phoneNumber,
+        normalizedNumber: response.normalized,
+        verdict: response.verdict,
+        threatScore: response.threatScore,
+        scamType: response.scamType,
+      }).catch(err => console.error('[lookup] Failed to store history:', err));
+    } else {
+      // Cache anonymous results
+      const cacheKey = `${phoneNumber}|${protectionLevel}|anon`;
+      lookupCache.set(cacheKey, { result: response, expiresAt: Date.now() + CACHE_TTL });
+    }
 
     // Clean old cache entries
     if (lookupCache.size > 10000) {

@@ -211,6 +211,34 @@ export async function checkIntlScamPattern(countryCode: string): Promise<{
   return { matched: true, patterns: data.map(d => ({ description: d.description, riskLevel: d.risk_level })) };
 }
 
+export async function addCallLookup(params: {
+  userId: string;
+  phoneNumber: string;
+  normalizedNumber: string;
+  verdict: string;
+  threatScore: number;
+  scamType?: string;
+}): Promise<boolean> {
+  const client = getClient();
+  const { error } = await client.from('call_lookups').insert({
+    user_id: params.userId,
+    phone_number: params.phoneNumber,
+    verdict: params.verdict,
+    threat_score: params.threatScore,
+    scam_type: params.scamType || null,
+  });
+  return !error;
+}
+
+export async function getReportCountForNumber(normalizedNumber: string): Promise<number> {
+  const client = getClient();
+  const { count } = await client
+    .from('scam_numbers')
+    .select('*', { count: 'exact', head: true })
+    .eq('normalized_number', normalizedNumber);
+  return count || 0;
+}
+
 export async function getGlobalStats(): Promise<{
   totalScamsBlocked: number; totalScamsTracked: number; activeScamNumbers: number; accuracyRate: number;
 }> {

@@ -338,6 +338,12 @@ export default function AdminDashboard() {
             }}>
               <i className="fas fa-sign-out-alt" /> Lock
             </button>
+            <a href="/trends" className="admin-btn admin-btn-outline" style={{ textDecoration: 'none' }}>
+              <i className="fas fa-chart-line" /> Trends
+            </a>
+            <a href="/wiki" className="admin-btn admin-btn-outline" style={{ textDecoration: 'none' }}>
+              <i className="fas fa-book-open" /> Wiki
+            </a>
             <a href="/" className="admin-btn admin-btn-outline" style={{ textDecoration: 'none' }}>
               <i className="fas fa-arrow-left" /> Dashboard
             </a>

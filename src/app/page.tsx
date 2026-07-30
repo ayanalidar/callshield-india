@@ -1,10 +1,55 @@
 'use client';
 
+import { useState } from 'react';
+import { useAuth } from '@/lib/auth-provider';
+import Link from 'next/link';
+import { ReportModal } from '@/components/report-modal';
+
 export default function RootPage() {
+  const { user, signOut, isAuthenticated } = useAuth();
+  const [reportModal, setReportModal] = useState<{ open: boolean; phoneNumber: string }>({ open: false, phoneNumber: '' });
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: ROOT_STYLES }} />
       <div className="root-bg" />
+
+      {/* Navbar */}
+      <nav className="root-nav">
+        <div className="root-nav-inner">
+          <Link href="/" className="root-nav-brand">
+            <i className="fas fa-shield-halved" />
+            CallShield India
+          </Link>
+          <div className="root-nav-right">
+            <button
+              className="root-nav-btn"
+              onClick={() => setReportModal({ open: true, phoneNumber: '' })}
+            >
+              <i className="fas fa-flag" /> Report Scam
+            </button>
+            {isAuthenticated ? (
+              <>
+                <Link href="/history" className="root-nav-link">
+                  <i className="fas fa-history" /> History
+                </Link>
+                <span className="root-nav-user">
+                  <i className="fas fa-user-circle" />
+                  {user?.phone ? `+91 ${user.phone.slice(0, 4)}...` : 'You'}
+                </span>
+                <button className="root-nav-link logout" onClick={signOut}>
+                  <i className="fas fa-sign-out-alt" /> Logout
+                </button>
+              </>
+            ) : (
+              <Link href="/auth/login" className="root-nav-link login">
+                <i className="fas fa-sign-in-alt" /> Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      </nav>
+
       <div className="root-wrap">
         {/* Header */}
         <div className="root-header">
@@ -18,7 +63,7 @@ export default function RootPage() {
         {/* Cards */}
         <div className="root-cards">
           {/* Dashboard Card */}
-          <a href="/" className="root-card">
+          <Link href="/" className="root-card">
             <div className="root-card-icon" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
               <i className="fas fa-chart-line" />
             </div>
@@ -33,10 +78,10 @@ export default function RootPage() {
             <div className="root-card-cta">
               <i className="fas fa-arrow-right" /> Open Dashboard
             </div>
-          </a>
+          </Link>
 
           {/* Landing Page Card */}
-          <a href="/landing" className="root-card">
+          <Link href="/landing" className="root-card">
             <div className="root-card-icon" style={{ '--c': 'var(--info)' } as React.CSSProperties}>
               <i className="fas fa-globe" />
             </div>
@@ -51,27 +96,68 @@ export default function RootPage() {
             <div className="root-card-cta">
               <i className="fas fa-arrow-right" /> Try Demo
             </div>
-          </a>
+          </Link>
+        </div>
+
+        {/* Quick Links */}
+        <div className="root-quick-links">
+          <Link href="/trends" className="root-ql-card">
+            <i className="fas fa-chart-line" />
+            <span>Scam Trends</span>
+          </Link>
+          <Link href="/wiki" className="root-ql-card">
+            <i className="fas fa-book-open" />
+            <span>Scam Wiki</span>
+          </Link>
+          <Link href="/landing" className="root-ql-card">
+            <i className="fas fa-globe" />
+            <span>Live Demo</span>
+          </Link>
         </div>
 
         {/* Footer link */}
         <div className="root-footer">
-          <a href="/admin">
+          <Link href="/admin">
             <i className="fas fa-lock" /> Admin Panel
-          </a>
+          </Link>
         </div>
       </div>
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={reportModal.open}
+        phoneNumber={reportModal.phoneNumber}
+        onClose={() => setReportModal({ open: false, phoneNumber: '' })}
+        onReported={() => {}}
+      />
     </>
   );
 }
 
 const ROOT_STYLES = `
-:root{--bg:#050c07;--bg2:#091410;--card:#0d1c14;--border:#1a3326;--accent:#00e676;--ad:rgba(0,230,118,.1);--ag:rgba(0,230,118,.25);--danger:#ff3d3d;--info:#40c4ff;--id:rgba(64,196,255,.1);--fg:#e0f2e9;--fg2:#a5c4b5;--muted:#4a6b58;--r:14px;--rs:8px}
+:root{--bg:#050c07;--bg2:#091410;--card:#0d1c14;--border:#1a3326;--accent:#00e676;--ad:rgba(0,230,118,.1);--ag:rgba(0,230,118,.25);--danger:#ff3d3d;--dg:rgba(255,61,61,.1);--info:#40c4ff;--id:rgba(64,196,255,.1);--fg:#e0f2e9;--fg2:#a5c4b5;--muted:#4a6b58;--r:14px;--rs:8px}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;overflow-x:hidden}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border)}
 .root-bg{position:fixed;inset:0;background:radial-gradient(ellipse 600px 400px at 50% 15%,rgba(0,230,118,.05),transparent 60%),radial-gradient(ellipse 400px 300px at 80% 85%,rgba(64,196,255,.03),transparent 50%),radial-gradient(ellipse 350px 300px at 20% 80%,rgba(255,61,61,.02),transparent 50%);pointer-events:none}
-.root-wrap{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px}
+
+/* Navbar */
+.root-nav{position:sticky;top:0;z-index:100;background:rgba(5,12,7,.92);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
+.root-nav-inner{max-width:1200px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:48px}
+.root-nav-brand{color:var(--fg);text-decoration:none;font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}
+.root-nav-brand i{color:var(--accent)}
+.root-nav-right{display:flex;align-items:center;gap:8px}
+.root-nav-btn{display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:var(--rs);background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.2);color:#ffab40;font-family:inherit;font-size:10px;font-weight:600;cursor:pointer;transition:all .2s}
+.root-nav-btn:hover{background:rgba(255,171,64,.15)}
+.root-nav-link{display:flex;align-items:center;gap:4px;padding:6px 12px;border-radius:var(--rs);background:transparent;border:1px solid transparent;color:var(--fg2);font-family:inherit;font-size:10px;font-weight:500;text-decoration:none;cursor:pointer;transition:all .2s}
+.root-nav-link:hover{color:var(--accent);border-color:var(--border)}
+.root-nav-link.login{background:var(--accent);color:var(--bg);border:none;font-weight:700}
+.root-nav-link.login:hover{opacity:.85;border-color:transparent}
+.root-nav-link.logout{color:var(--muted)}
+.root-nav-link.logout:hover{color:var(--danger);border-color:rgba(255,61,61,.2)}
+.root-nav-user{font-size:9px;color:var(--fg2);display:flex;align-items:center;gap:4px;padding:0 4px}
+
+.root-wrap{position:relative;z-index:1;min-height:calc(100vh - 48px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px}
 
 /* Header */
 .root-header{text-align:center;margin-bottom:36px}
@@ -92,7 +178,11 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--fg)
 .root-card-features span i{color:var(--accent);font-size:8px}
 .root-card-cta{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:var(--rs);background:var(--ad);border:1px solid rgba(0,230,118,.15);font-size:11px;font-weight:600;color:var(--accent);transition:all .2s}
 .root-card:hover .root-card-cta{background:var(--ag)}
-.root-footer{margin-top:24px}
+.root-quick-links{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center}
+.root-ql-card{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--card);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--fg2);font-size:11px;font-weight:600;transition:all .2s}
+.root-ql-card:hover{border-color:rgba(0,230,118,.2);color:var(--accent);transform:translateY(-2px)}
+.root-ql-card i{font-size:12px;color:var(--accent)}
+.root-footer{margin-top:20px}
 .root-footer a{font-size:10px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px;transition:color .2s}
 .root-footer a:hover{color:var(--fg2)}
 `;

@@ -3,7 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-server';
 import { getWhitelist, addToWhitelist, removeFromWhitelist } from '@/db/supabase';
 
 export async function GET(request: NextRequest) {
