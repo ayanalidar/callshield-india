@@ -1,0 +1,30 @@
+{
+  "name": "callshield-india",
+  "version": "1.0.0",
+  "description": "CallShield India — AI-powered scam call protection for every Indian",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:migrate": "supabase migration up",
+    "db:seed": "supabase db reset"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "next": "^14.2.0",
+    "pg": "^8.22.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "supabase": "^1.200.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.env.local
+.env
+*.log
+.temp/
+scripts/migrate-v*.js
+scripts/migrate-run.js
