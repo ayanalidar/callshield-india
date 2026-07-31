@@ -245,6 +245,11 @@ function Dashboard({ user, stats }: { user: { id: string; phone: string }; stats
               <div className="ql-title">Message Scanner</div>
               <div className="ql-desc">Scan SMS and WhatsApp</div>
             </Link>
+            <Link href="/demo/call" className="ql-card">
+              <div className="ql-icon">📞</div>
+              <div className="ql-title">Call Demo</div>
+              <div className="ql-desc">Simulate a scam call</div>
+            </Link>
             <Link href="/trends" className="ql-card">
               <div className="ql-icon">🔥</div>
               <div className="ql-title">Scam Trends</div>
