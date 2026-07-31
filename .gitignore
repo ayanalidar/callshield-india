@@ -6,3 +6,6 @@ node_modules/
 .temp/
 scripts/migrate-v*.js
 scripts/migrate-run.js
+
+.vercel
+.env*

@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ phone }),
       });
       const data = await res.json();
+      console.log('[Auth] OTP send response:', data);
       if (!res.ok || data.error) {
         return { success: false, error: data.error || 'Failed to send OTP' };
       }
