@@ -381,7 +381,7 @@ export default function CallDemoPage() {
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — pinned to bottom like real phone dialer */}
           {step === 'ringing' && (
             <div className="call-actions">
               <button className="decline-btn" onClick={declineCall}>
@@ -396,7 +396,7 @@ export default function CallDemoPage() {
           {(step === 'answered' || step === 'blocked') && (
             <div className="call-actions">
               <button className="end-call-btn" onClick={resetAll}>
-                {step === 'blocked' ? '🛡️ Call Blocked — Return to Demo' : '📵 End Call — Return to Demo'}
+                {step === 'blocked' ? '🛡️ Call Blocked — Tap to Return' : '📵 End Call — Tap to Return'}
               </button>
             </div>
           )}

@@ -1,20 +1,25 @@
 /**
  * CallShield Middleware
- * Protects /admin and /history behind auth.
- * Stores session in cookie for SSR.
+ * Protects /history behind Supabase auth.
+ * Admin pages handle their own auth via admin_token cookie.
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Routes that require authentication
-const PROTECTED_ROUTES = ['/admin', '/history'];
+// Routes that require Supabase auth (NOT admin auth)
+const SUPABASE_PROTECTED = ['/history'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Only guard the exact protected paths (not sub-paths like /admin/api)
-  const isProtected = PROTECTED_ROUTES.some(
+  // Admin routes use their own cookie-based auth — skip Supabase check
+  if (pathname.startsWith('/admin')) {
+    return NextResponse.next();
+  }
+
+  // Check Supabase-protected routes
+  const isProtected = SUPABASE_PROTECTED.some(
     (route) => pathname === route || pathname.startsWith(route + '/')
   );
 
@@ -22,21 +27,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for auth status via cookie
-  const hasAuthCookie = request.cookies.get('sb-access-token')?.value;
+  // Check for Supabase auth cookie
+  const allCookies = request.cookies.getAll();
+  const sbCookie = allCookies.find(
+    (c) => c.name.startsWith('sb-') && c.name.endsWith('-auth-token')
+  );
 
-  if (!hasAuthCookie) {
-    // Also check the Supabase auth cookie pattern
-    const allCookies = request.cookies.getAll();
-    const sbCookie = allCookies.find(
-      (c) => c.name.startsWith('sb-') && c.name.endsWith('-auth-token')
-    );
-
-    if (!sbCookie) {
-      const loginUrl = new URL('/auth/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+  if (!sbCookie) {
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();

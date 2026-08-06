@@ -233,6 +233,29 @@ function Dashboard({ user, stats }: { user: { id: string; phone: string }; stats
                 {result.evidence.map((e, i) => <div key={i} className="res-sec-i">{e}</div>)}
               </div>
             )}
+            {(result.isScam || result.dbMatch.found) && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <Link
+                  href={`/number/${encodeURIComponent(result.phoneNumber)}`}
+                  className="res-report-link"
+                  style={{ flex: 1, marginTop: 0 }}
+                >
+                  📄 View Full Report →
+                </Link>
+                <Link
+                  href={`/report?phone=${encodeURIComponent(result.phoneNumber)}&type=${encodeURIComponent(result.scamType || '')}`}
+                  className="res-report-link"
+                  style={{
+                    flex: 1, marginTop: 0,
+                    background: 'rgba(255,171,64,.08)',
+                    borderColor: 'rgba(255,171,64,.25)',
+                    color: '#ffab40',
+                  }}
+                >
+                  🏛️ File Cyber Cell Report →
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
@@ -437,6 +460,14 @@ const CSS = `
   .res-sec-i::before{content:'▸';color:var(--accent);flex-shrink:0}
   .res-sec-warn .res-sec-i{background:rgba(255,152,0,.04);color:#ff9800}
   .res-sec-warn .res-sec-i::before{content:'⚠';color:#ff9800}
+  .res-report-link{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    margin-top:12px;padding:10px;
+    background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.18);
+    border-radius:8px;font-size:12px;font-weight:600;color:var(--accent);
+    text-decoration:none;transition:background .15s;
+  }
+  .res-report-link:hover{background:rgba(0,230,118,.12)}
 
   .ql-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
   @media(min-width:600px){.ql-grid{grid-template-columns:repeat(4,1fr)}}
