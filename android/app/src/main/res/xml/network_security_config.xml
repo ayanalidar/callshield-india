@@ -6,7 +6,7 @@
         HTTPS-only to the Vercel backend. No cleartext traffic.
     -->
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">callshield.vercel.app</domain>
+        <domain includeSubdomains="true">callshield-india-olive.vercel.app</domain>
         <domain includeSubdomains="true">vercel.app</domain>
     </domain-config>
 

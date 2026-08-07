@@ -29,6 +29,7 @@ class CallShieldInCallService : InCallService() {
         private const val TEXT_GREEN = 0xFF_4CAF50.toInt()
         private const val TEXT_ORANGE = 0xFF_FFA726.toInt()
         private const val TEXT_RED = 0xFF_EF5350.toInt()
+ private const val TEXT_DIM = 0xFF_9E9E9E.toInt()
     }
 
     private var overlayView: LinearLayout? = null

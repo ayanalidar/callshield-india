@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     // Default base URL points to the Vercel deployment
-    private const val DEFAULT_BASE_URL = "https://callshield.vercel.app/"
+    private const val DEFAULT_BASE_URL = "https://callshield-india-olive.vercel.app/"
 
     /** Runtime-overridable base URL (e.g. from settings or BuildConfig). */
     var baseUrl: String = DEFAULT_BASE_URL

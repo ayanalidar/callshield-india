@@ -6,24 +6,19 @@ plugins {
 
 android {
     namespace 'com.callshield.india'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.callshield.india"
         minSdk 24
-        targetSdk 34
+        targetSdk 35
         versionCode 1
         versionName "1.0.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         // API base URL — points to the CallShield Vercel deployment
-        buildConfigField "String", "API_BASE_URL", "\"https://callshield.vercel.app/\""
-
-        // Room schema export for migrations
-        ksp {
-            arg("room.schemaLocation", "$projectDir/schemas")
-        }
+        buildConfigField "String", "API_BASE_URL", "\"https://callshield-india-olive.vercel.app/\""
     }
 
     buildTypes {
@@ -49,6 +44,11 @@ android {
 
     buildFeatures {
         buildConfig true
+    }
+
+    // Room schema export directory
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 }
 

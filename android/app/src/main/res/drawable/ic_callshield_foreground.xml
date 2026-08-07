@@ -12,11 +12,10 @@
 
     <!-- Check mark -->
     <path
-        android:fillColor="#FFFFFFFF"
+        android:fillColor="@android:color/transparent"
         android:pathData="M46,56 L52,62 L62,50"
         android:strokeWidth="3"
         android:strokeColor="#FFFFFFFF"
-        android:fillColor="@android:color/transparent"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 </vector>
