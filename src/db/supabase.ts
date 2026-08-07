@@ -120,32 +120,58 @@ export async function submitScamReport(report: CrowdReportInput & { userId?: str
   success: boolean; duplicate: boolean; message: string;
 }> {
   const client = getClient();
-  if (report.userId) {
-    const { data: existing } = await client
-      .from('scam_reports')
-      .select('id')
-      .eq('normalized_number', report.normalizedNumber)
-      .eq('reporter_id', report.userId)
-      .gt('created_at', new Date(Date.now() - 3600000).toISOString())
-      .limit(1);
-    if (existing && existing.length > 0) {
-      return { success: false, duplicate: true, message: 'Already reported in last hour' };
-    }
+  
+  // Normalize the number for lookup
+  const digits = (report.normalizedNumber || report.phoneNumber).replace(/[^0-9]/g, '');
+  let normalized = report.normalizedNumber;
+  if (!normalized) {
+    if (digits.length === 10) normalized = '+91' + digits;
+    else if (digits.length === 12 && digits.startsWith('91')) normalized = '+' + digits;
+    else normalized = '+' + digits;
   }
-  const { error } = await client.from('scam_reports').insert({
+  
+  // Check for recent duplicate report
+  const { data: existing } = await client
+    .from('scam_numbers')
+    .select('id, report_count')
+    .or(`normalized_number.eq.${normalized},phone_number.eq.${normalized}`)
+    .limit(1);
+  
+  if (existing && existing.length > 0) {
+    // Update existing scam number
+    const d = existing[0] as any;
+    const newScore = Math.min(100, report.spamScore ? report.spamScore * 20 : d.threat_score + 5);
+    const { error } = await client
+      .from('scam_numbers')
+      .update({
+        report_count: (d.report_count || 0) + 1,
+        recent_report_count: (d.recent_report_count || 0) + 1,
+        threat_score: newScore,
+        last_reported_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        severity: newScore >= 80 ? 'critical' : newScore >= 60 ? 'high' : newScore >= 30 ? 'medium' : 'low',
+        source: 'user_report',
+      })
+      .eq('id', d.id);
+    if (error) return { success: false, duplicate: false, message: error.message };
+    return { success: true, duplicate: false, message: `Report added. Now ${(d.report_count||0)+1} community reports.` };
+  }
+  
+  // Insert new scam number (no RLS on this table)
+  const { error } = await client.from('scam_numbers').insert({
     phone_number: report.phoneNumber,
-    normalized_number: report.normalizedNumber,
     scam_type: report.scamType,
-    description: report.description || null,
-    spam_score: report.spamScore || null,
-    reporter_id: report.userId || null,
-    reporter_ip: report.reporterIp || null,
-    call_timestamp: report.callTimestamp || null,
-    call_duration_seconds: report.callDurationSeconds || null,
-    source: 'app',
+    severity: report.spamScore >= 4 ? 'high' : report.spamScore >= 3 ? 'medium' : 'low',
+    threat_score: Math.min(100, (report.spamScore || 3) * 20),
+    report_count: 1,
+    recent_report_count: 1,
+    first_reported_at: new Date().toISOString(),
+    last_reported_at: new Date().toISOString(),
+    source: 'user_report',
+    verified: false,
   });
   if (error) return { success: false, duplicate: false, message: error.message };
-  return { success: true, duplicate: false, message: 'Report submitted' };
+  return { success: true, duplicate: false, message: 'New scam number registered. Thank you!' };
 }
 
 export async function getUserBlocks(userId: string) {
