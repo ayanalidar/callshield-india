@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallShield India</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 320px;
+      min-height: 380px;
+      background: #060e08;
+      color: #e0e0e0;
+      font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+    }
+    .header {
+      background: linear-gradient(135deg, #00e67622, #00e67608);
+      border-bottom: 1px solid #00e67633;
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #00e676;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      font-size: 11px;
+      color: #6b9a7a;
+      margin-top: 2px;
+    }
+    .search-box {
+      padding: 12px 14px;
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0a1a0e;
+      border: 1px solid #00e67633;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: #00e676; }
+    .search-input::placeholder { color: #3a5a3a; }
+    .btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: #00e676;
+      color: #060e08;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover:not(:disabled) { background: #00c853; }
+    .btn:disabled { background: #1a3a1a; color: #4a6a4a; cursor: not-allowed; }
+    .result {
+      padding: 0 14px 14px;
+      display: none;
+    }
+    .result.show { display: block; }
+    .verdict-banner {
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .verdict-banner.safe { background: #00e67622; border: 1px solid #00e67644; }
+    .verdict-banner.suspicious { background: #ff980022; border: 1px solid #ff980044; }
+    .verdict-banner.scam { background: #f4433622; border: 1px solid #f4433644; }
+    .verdict-banner.critical { background: #b71c1c33; border: 1px solid #b71c1c55; }
+    .verdict-label { font-size: 15px; font-weight: 700; text-transform: uppercase; }
+    .verdict-banner.safe .verdict-label { color: #00e676; }
+    .verdict-banner.suspicious .verdict-label { color: #ff9800; }
+    .verdict-banner.scam .verdict-label { color: #f44336; }
+    .verdict-banner.critical .verdict-label { color: #ef5350; }
+    .score-ring {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 3px solid #00e67644; display: flex; align-items: center; justify-content: center;
+    }
+    .score-ring .score { font-size: 16px; font-weight: 700; color: #00e676; }
+    .detail-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0; border-bottom: 1px solid #ffffff08;
+      font-size: 12px;
+    }
+    .detail-row .label { color: #6b9a7a; }
+    .detail-row .value { color: #c0c0c0; font-weight: 500; }
+    .error { padding: 12px 14px; color: #f44336; font-size: 13px; display: none; }
+    .error.show { display: block; }
+    .status-bar {
+      padding: 8px 14px; font-size: 10px; color: #3a5a3a;
+      border-top: 1px solid #ffffff08; text-align: center; margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🛡️ CallShield India</h1>
+    <p>Scam number lookup</p>
+  </div>
+  <div class="search-box">
+    <input type="text" class="search-input" id="phoneInput" placeholder="Enter +91 or 10-digit number..." autofocus>
+    <button class="btn" id="searchBtn">🔍 Check Number</button>
+  </div>
+  <div class="error" id="errorMsg"></div>
+  <div class="result" id="result">
+    <div class="verdict-banner" id="verdictBanner">
+      <span class="verdict-label" id="verdictLabel">—</span>
+      <div class="score-ring"><span class="score" id="threatScore">—</span></div>
+    </div>
+    <div id="details"></div>
+  </div>
+  <div class="status-bar">
+    ⚡ Real-time protection for every Indian
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

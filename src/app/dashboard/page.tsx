@@ -288,6 +288,21 @@ function Dashboard({ user, stats }: { user: { id: string; phone: string }; stats
               <div className="ql-title">Lookup History</div>
               <div className="ql-desc">Past number checks</div>
             </Link>
+            <Link href="/upi" className="ql-card">
+              <div className="ql-icon">💸</div>
+              <div className="ql-title">UPI Check</div>
+              <div className="ql-desc">Verify before you pay</div>
+            </Link>
+            <Link href="/family" className="ql-card">
+              <div className="ql-icon">👨‍👩‍👧‍👦</div>
+              <div className="ql-title">Family Shield</div>
+              <div className="ql-desc">Protect your loved ones</div>
+            </Link>
+            <Link href="/elder" className="ql-card">
+              <div className="ql-icon">🧓</div>
+              <div className="ql-title">Elder Mode</div>
+              <div className="ql-desc">Simple protection screen</div>
+            </Link>
           </div>
         </div>
       </div>
